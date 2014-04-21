@@ -34,7 +34,7 @@ var makeScrapeQueue = function () {
 
     tail = node;
     size++;
-    console.log('current queue: ', head);
+    // console.log('next queue: ', head.value);
     return node.value;
   };
 
@@ -149,7 +149,21 @@ var executeTest = function () {
 
   var list = scrapeQueue.all();
 
-  console.log(r00, r01, r02, r03, r04, r05, r06, r07);
+  //
+
+  scrapeQueue = makeScrapeQueue();
+  scrapeQueue.queue(t1);
+  scrapeQueue.queue(t2);
+  scrapeQueue.dequeue();
+  scrapeQueue.queue(t3);
+
+  var r08 = scrapeQueue.dequeue().title === t2.title;
+  var r09 = scrapeQueue.all()[0].title === t3.title;
+  var r10 = scrapeQueue.contains(t3) === true;
+  var r11 = scrapeQueue.contains(t2) === false;
+
+
+  console.log(r00, r01, r02, r03, r04, r05, r06, r07, r08, r09, r10, r11);
   console.log('list: \n', list);
 };
 

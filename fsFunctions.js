@@ -5,13 +5,14 @@ var path = require('path');
 
 var saveAsJson = function (item, dir) {
   var dir = dir || './json/'
-  item.file = item.title
-          .replace(/[^\w\s]|_/g, '')
-          .replace(/\W+/g, '')
-          .replace(/\s+/g, '')
-          .replace(/ +?/g, '')
-          .replace()
-          .toLowerCase();
+  item.file = toFilename(item);
+  // item.file = item.title
+  //         .replace(/[^\w\s]|_/g, '')
+  //         .replace(/\W+/g, '')
+  //         .replace(/\s+/g, '')
+  //         .replace(/ +?/g, '')
+  //         .replace()
+  //         .toLowerCase();
           //if then for directory
   // if (archive.indexOf(item.file + '.json') === -1 && main.indexOf(item.file + '.json') === -1){
   //   scrapeSite(item.link, item.title, item);
@@ -19,6 +20,17 @@ var saveAsJson = function (item, dir) {
 
   return fs.writeFileAsync(path.join(dir, item.file + '.json'), JSON.stringify(item));
 };
+
+var toFilename = function (item) {
+  return item.title
+          .replace(/[^\w\s]|_/g, '')
+          .replace(/\W+/g, '')
+          .replace(/\s+/g, '')
+          .replace(/ +?/g, '')
+          .replace()
+          .toLowerCase();
+};
+
 /***
  *      ______                            _   
  *     |  ____|                          | |  
@@ -31,6 +43,7 @@ var saveAsJson = function (item, dir) {
  */
 
 module.exports.saveAsJson = saveAsJson;
+module.exports.toFilename = toFilename;
 
 
 /***

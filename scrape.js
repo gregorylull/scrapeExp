@@ -23,6 +23,7 @@ var mongoose = require('mongoose');
 
 var rssQ = require('./rssQueue.js');
 var myFs = require('./fsFunctions.js');
+var fs = require('fs');
 
 var rssURL = "https://news.ycombinator.com/rss";
 
@@ -30,6 +31,12 @@ var Schema = mongoose.Schema;
 var db = mongoose.connection;
 var mongoURL = process.env.MONGO || "mongodb://localhost/db";
 mongoose.connect(mongoURL);
+
+// greg
+var api = '932008a00a8def147f99692f0eb8110fe77a6f42';
+
+// // alex
+// var api = '9695482fe1197a0ba40b18c71190d2669b7d903a';
 
 var siteSchema = new Schema({
   content: String,
@@ -69,9 +76,9 @@ var scrapeQueue = rssQ.makeScrapeQueue();
 
 var readabilityRequestCron = function (time, master) {
   master = master || masterRssList;
-  var time = time || '*/15 * * * * *';
+  var time = time || '*/30 * * * * *';
   new CronJob(time, function(){
-  console.log('You will see this message every 15 sec');
+  console.log('You will see this message every 30 sec');
 
   // populates the master rss queue which is independent of querying readability,
   /*  
@@ -96,14 +103,16 @@ var readabilityRequestCron = function (time, master) {
 // populates rss master list upon successful rss read
 var populateMasterRssQueue = function (url, limit) {
   url = url || rssURL;
+  var archive = fs.readdirSync('./scrapeArchive/');
+  var main = fs.readdirSync('./json/');
 
   rssReader(url).then(function(rssResults){
 
     console.log('rss scrape results: ', toRssResultTitles(rssResults));
 
-    var addedNew = false;
+    // var addedNew = false;
 
-    var len = limit ? limit : rssResults.length
+    var len = limit ? limit : rssResults.length;
 
     // check each item from the rss result and add to the queue IF
     //   1. it's not contained in scrapeQueue
@@ -111,22 +120,28 @@ var populateMasterRssQueue = function (url, limit) {
     for (var i = 0; i < len; i++) {
       var rssObj = rssResults[i];
       if (isRssDocValid(rssObj) && !scrapeQueue.contains(rssObj)) {
-        mongoCheck(rssObj).then(function (isInMongo) {
-          console.log('inside rss queue isInMongo: ', isInMongo, rssObj.title);
-          if (!isInMongo) {
-            var add = scrapeQueue.queue(rssObj);
-            console.log('added to scrapeQueue: ', add);
-            addedNew = true;
+          var filename = myFs.toFilename(rssObj);
+          if (archive.indexOf(filename + '.json') === -1 && main.indexOf(filename + '.json') === -1) {
+            scrapeQueue.queue(rssObj);
           }
-        }).catch(function (err) {
-          console.log('mongoCheck query errored: ', err);
-        });
       }
+      // if (isRssDocValid(rssObj) && !scrapeQueue.contains(rssObj)) {
+      //   mongoCheck(rssObj).then(function (isInMongo) {
+      //     console.log('inside rss queue isInMongo: ', isInMongo, rssObj.title);
+      //     if (!isInMongo) {
+      //       var add = scrapeQueue.queue(rssObj);
+      //       console.log('added to scrapeQueue: ', add);
+      //       // addedNew = true;
+      //     }
+      //   }).catch(function (err) {
+      //     console.log('mongoCheck query errored: ', err);
+      //   });
+      // }
     }
     // for testing purposes
-    if (addedNew) {
-      console.log('\ncurrent rss list: \n', scrapeQueue.all());
-    }
+    // if (addedNew) {
+    //   console.log('\ncurrent rss list: \n', scrapeQueue.all());
+    // }
   })
   .catch(function(err){
     console.log('rssReader did not read rss: ', err);
@@ -143,28 +158,31 @@ TODO PLAN
         1. remove from Queue
 */
 
-var queryReadability = function (doc) {
+var queryReadability = function () {
 
   if (scrapeQueue.size() > 0) {
-    firstInQueue = scrapeQueue.all()[0];
+    // firstInQueue = scrapeQueue.all()[0];
+    var d = scrapeQueue.dequeue();
+    console.log('dequeued: ', d.title);
+    console.log('next que: ', scrapeQueue.all()[0])
 
-    if (isRssDocValid(firstInQueue)) {
-      readableQuery(firstInQueue.link)
+    // if (isRssDocValid(firstInQueue)) {
+      if (isRssDocValid(d)) {
+      // readableQuery(firstInQueue.link)
+      readableQuery(d.link)
       .then(function (doc) {
         console.log('readableQuery worked: ', doc.title);
 
         myFs.saveAsJson(doc)
         .then(function(item){
           console.log('save as Json successful');
-          var d = scrapeQueue.dequeue();
-          console.log('dequeued      : ', d.title);
         })
         .catch(function (err) {
           console.log('save as json did not work: ', err);
         });
       })
       .catch(function(err){
-        console.log('reability did not work');
+        console.log('reability did not work: ', err);
       });
     }
   }
@@ -284,7 +302,7 @@ var rssReader = function(url) {
 
 var readableQuery = function(url) {
   var doc = {};
-  var apiKey = process.env.API || '9695482fe1197a0ba40b18c71190d2669b7d903a';
+  var apiKey = process.env.API || api;
   return new Promise (function(resolve, reject) {
     var rURL = 'https://readability.com/api/content/v1/parser?url=' + url + '&token=' + apiKey;
     request(rURL, function(error, response, html) {
@@ -292,16 +310,16 @@ var readableQuery = function(url) {
         readable = JSON.parse(html);
         mongoCheck(readable).then(function (isInMongo) {
           if (!isInMongo) {
-            saveToMongo(readable)
+            return saveToMongo(readable)
             .then(function() {
               doc.title = readable.title;
               doc.url = readable.url;
               doc.content = readable.content;
               console.log('saved to mongo: ', doc.title);
-              wordTableMaker(doc)
-              .then(function(docWithWordTable) {
-                return resolve(docWithWordTable);
-              })
+              return wordTableMaker(doc)
+                .then(function(docWithWordTable) {
+                  return resolve(docWithWordTable);
+                });
             });
           }
         }).catch(function (err) {
@@ -361,9 +379,9 @@ var mongoCheck = function(rssObj) {
     var url = (rssObj.url !== undefined )? rssObj.url : rssObj.link;
     var title = rssObj.title;
 
-    var mongoQuery = { title: title };
+    var mongoQuery = { title: title , url: url};
     Site.find(mongoQuery).exec(function(error, result) {
-      console.log('mongoose results: ' ,result);
+      // console.log('mongoose results: ' ,result);
       if (error) {
         reject(error);
       }
