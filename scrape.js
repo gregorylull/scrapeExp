@@ -76,7 +76,7 @@ var scrapeQueue = rssQ.makeScrapeQueue();
 
 var readabilityRequestCron = function (time, master) {
   master = master || masterRssList;
-  var time = time || '*/30 * * * * *';
+  var time = time || '*/20 * * * * *';
   new CronJob(time, function(){
   console.log('You will see this message every 30 sec');
 
